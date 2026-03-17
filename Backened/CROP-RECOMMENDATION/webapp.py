@@ -1,101 +1,248 @@
-## Importing necessary libraries for the web app
+# -------------------------------
+# Import Libraries
+# -------------------------------
+
+from sensor_reader import read_sensor_data
+
 import streamlit as st
 import numpy as np
 import pandas as pd
-from sklearn.ensemble import RandomForestClassifier
 import pickle
-import os
-import matplotlib.pyplot as plt
-import seaborn as sns
-from sklearn.metrics import classification_report
-from sklearn import metrics
-from sklearn import tree
-from sklearn.metrics import accuracy_score
-import warnings
-warnings.filterwarnings('ignore')
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import LabelEncoder
-
-# Display Images
-# import Image from pillow to open images
 from PIL import Image
+from streamlit_autorefresh import st_autorefresh
+from datetime import datetime
+
+
+# -------------------------------
+# Page Configuration
+# -------------------------------
+
+st.set_page_config(page_title="KrushtiTech", layout="wide")
+
+# Auto refresh every 2 seconds
+st_autorefresh(interval=2000, key="sensor_refresh")
+
+
+# -------------------------------
+# Load Image
+# -------------------------------
+
 img = Image.open("crop.png")
-# display image using streamlit
-# width is used to set the width of an image
 st.image(img)
 
-df= pd.read_csv('Crop_recommendation.csv')
 
-#features = df[['temperature', 'humidity', 'ph', 'rainfall']]
-X = df[['N', 'P','K','temperature', 'humidity', 'ph', 'rainfall']]
+# -------------------------------
+# Load Dataset
+# -------------------------------
+
+df = pd.read_csv('Crop_recommendation.csv')
+
+X = df[['N','P','K','temperature','humidity','ph','rainfall']]
 y = df['label']
-labels = df['label']
-
-# Split the data into training and testing sets
-Xtrain, Xtest, Ytrain, Ytest = train_test_split(X, y, test_size=0.3, random_state=42)
-RF = RandomForestClassifier(n_estimators=20, random_state=5)
-RF.fit(Xtrain,Ytrain)
-predicted_values = RF.predict(Xtest)
-x = metrics.accuracy_score(Ytest, predicted_values)
 
 
-# Function to load and display an image of the predicted crop
-def show_crop_image(crop_name):
-    # Assuming we have a directory named 'crop_images' with images named as 'crop_name.jpg'
-    image_path = os.path.join('crop_images', crop_name.lower()+'.jpg')
-    if os.path.exists(image_path):
-        st.image(image_path, caption=f"Recommended crop: {crop_name}", use_column_width=True)
-    else:
-        st.error("Image not found for the predicted crop.")
+# -------------------------------
+# Load Model
+# -------------------------------
+
+model = pickle.load(open("RF.pkl","rb"))
 
 
-import pickle
-# Dump the trained Naive Bayes classifier with Pickle
-RF_pkl_filename = 'RF.pkl'
-# Open the file to save as pkl file
-RF_Model_pkl = open(RF_pkl_filename, 'wb')
-pickle.dump(RF, RF_Model_pkl)
-# Close the pickle instances
-RF_Model_pkl.close()
+# -------------------------------
+# Prediction Function
+# -------------------------------
 
-
-#model = pickle.load(open('RF.pkl', 'rb'))
-RF_Model_pkl=pickle.load(open('RF.pkl','rb'))
-
-## Function to make predictions
 def predict_crop(nitrogen, phosphorus, potassium, temperature, humidity, ph, rainfall):
-    # # Making predictions using the model
-    prediction = RF_Model_pkl.predict(np.array([nitrogen, phosphorus, potassium, temperature, humidity, ph, rainfall]).reshape(1, -1))
+
+    input_data = np.array(
+        [nitrogen, phosphorus, potassium, temperature, humidity, ph, rainfall]
+    ).reshape(1,-1)
+
+    prediction = model.predict(input_data)
+
     return prediction
 
-## Streamlit code for the web app interface
-def main():  
-    # # Setting the title of the web app
-    st.markdown("<h1 style='text-align: center;'>SMART CROP RECOMMENDATIONS", unsafe_allow_html=True)
-    
+
+# -------------------------------
+# Streamlit App
+# -------------------------------
+
+def main():
+
+    st.markdown(
+        "<h1 style='text-align: center;'>SMART CROP RECOMMENDATIONS</h1>",
+        unsafe_allow_html=True
+    )
+
+    # --------------------------------
+    # Initialize Sensor Data in Session State
+    # --------------------------------
+
+    if "sensor" not in st.session_state:
+        st.session_state["sensor"] = {
+            "temperature": 0,
+            "humidity": 0,
+            "moisture": 0,
+            "light": 0,
+            "rain": 1
+        }
+
+    # --------------------------------
+    # Read Sensor Data
+    # --------------------------------
+
+    sensor_data = read_sensor_data()
+
+    if sensor_data is not None:
+        st.session_state["sensor"] = sensor_data
+
+    sensor = st.session_state["sensor"]
+
+    # --------------------------------
+    # Sensor Dashboard
+    # --------------------------------
+
+    st.subheader("🌱 Live Sensor Data")
+
+    col1, col2, col3 = st.columns(3)
+
+    col1.metric("Temperature (°C)", sensor["temperature"])
+    col2.metric("Humidity (%)", sensor["humidity"])
+    col3.metric("Soil Moisture", sensor["moisture"])
+
+    col4, col5 = st.columns(2)
+
+    rain_status = "Detected" if sensor["rain"] == 0 else "No Rain"
+
+    col4.metric("Rain Status", rain_status)
+    col5.metric("Light Level", sensor["light"])
+
+
+    # --------------------------------
+    # Irrigation Status
+    # --------------------------------
+
+    st.subheader("💧 Smart Irrigation Status")
+
+    # Soil sensor range 0-1023
+    if sensor["moisture"] > 700:
+
+        st.success("Pump ON (Soil Dry)")
+
+    else:
+
+        st.info("Pump OFF (Soil Moist)")
+
+
+    # --------------------------------
+    # Sidebar
+    # --------------------------------
+
     st.sidebar.title("KrushtiTech")
-    # # Input fields for the user to enter the environmental factors
     st.sidebar.header("Enter Crop Details")
-    nitrogen = st.sidebar.number_input("Nitrogen", min_value=0.0, max_value=140.0, value=0.0, step=0.1)
-    phosphorus = st.sidebar.number_input("Phosphorus", min_value=0.0, max_value=145.0, value=0.0, step=0.1)
-    potassium = st.sidebar.number_input("Potassium", min_value=0.0, max_value=205.0, value=0.0, step=0.1)
-    temperature = st.sidebar.number_input("Temperature (°C)", min_value=0.0, max_value=51.0, value=0.0, step=0.1)
-    humidity = st.sidebar.number_input("Humidity (%)", min_value=0.0, max_value=100.0, value=0.0, step=0.1)
-    ph = st.sidebar.number_input("pH Level", min_value=0.0, max_value=14.0, value=0.0, step=0.1)
-    rainfall = st.sidebar.number_input("Rainfall (mm)", min_value=0.0, max_value=500.0, value=0.0, step=0.1)
-    inputs=[[nitrogen, phosphorus, potassium, temperature, humidity, ph, rainfall]]                                               
-   
-    # # Validate inputs and make prediction
-    inputs = np.array([[nitrogen, phosphorus, potassium, temperature, humidity, ph, rainfall]])
+
+    nitrogen = st.sidebar.number_input("Nitrogen", 0.0, 140.0, 0.0, key="nitrogen")
+    phosphorus = st.sidebar.number_input("Phosphorus", 0.0, 145.0, 0.0, key="phosphorus")
+    potassium = st.sidebar.number_input("Potassium", 0.0, 205.0, 0.0, key="potassium")
+    ph = st.sidebar.number_input("pH Level", 0.0, 14.0, 0.0, key="ph")
+
+    temperature = sensor["temperature"]
+    humidity = sensor["humidity"]
+
+    rainfall = 1 if sensor["rain"] == 0 else 0
+
+
+    # --------------------------------
+    # Prediction Button
+    # --------------------------------
+
     if st.sidebar.button("Predict"):
-        if not inputs.any() or np.isnan(inputs).any() or (inputs == 0).all():
-            st.error("Please fill in all input fields with valid values before predicting.")
+
+        if nitrogen == 0 or phosphorus == 0 or potassium == 0 or ph == 0:
+
+            st.error("Please fill all input values")
+
         else:
-            prediction = predict_crop(nitrogen, phosphorus, potassium, temperature, humidity, ph, rainfall)
-            st.success(f"The recommended crop is: {prediction[0]}")
+
+            prediction = predict_crop(
+                nitrogen,
+                phosphorus,
+                potassium,
+                temperature,
+                humidity,
+                ph,
+                rainfall
+            )
+
+            st.session_state["prediction"] = prediction[0]
+            st.session_state["inputs"] = {
+                "nitrogen": nitrogen,
+                "phosphorus": phosphorus,
+                "potassium": potassium,
+                "ph": ph,
+                "temperature": temperature,
+                "humidity": humidity,
+                "rainfall": rainfall
+            }
+
+    # --------------------------------
+    # Display Prediction and Report
+    # --------------------------------
+
+    if "prediction" in st.session_state:
+
+        st.success(f"The recommended crop is: {st.session_state['prediction']}")
+
+        # -------------------------
+        # Farmer Report
+        # -------------------------
+
+        current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        inputs = st.session_state["inputs"]
+
+        report = f"""
+KRUSHTITECH SMART AGRICULTURE REPORT
+-----------------------------------
+
+Date & Time : {current_time}
+
+Live Sensor Data
+----------------
+Temperature      : {inputs["temperature"]} °C
+Humidity         : {inputs["humidity"]} %
+Soil Moisture    : {sensor["moisture"]}
+Light Level      : {sensor["light"]}
+Rain Status      : {"Rain Detected" if inputs["rainfall"] == 1 else "No Rain"}
+
+Soil Input Values
+-----------------
+Nitrogen         : {inputs["nitrogen"]}
+Phosphorus       : {inputs["phosphorus"]}
+Potassium        : {inputs["potassium"]}
+pH Level         : {inputs["ph"]}
+
+Crop Recommendation
+-------------------
+Recommended Crop : {st.session_state['prediction']}
+
+Generated by KrushtiTech
+"""
+
+        # Download Button
+        st.download_button(
+            label="📄 Download Farmer Report",
+            data=report,
+            file_name="krushtitech_farmer_report.txt",
+            mime="text/plain"
+        )
+
+            
 
 
-## Running the main function
-if __name__ == '__main__':
+# -------------------------------
+# Run App
+# -------------------------------
+
+if __name__ == "__main__":
     main()
-
