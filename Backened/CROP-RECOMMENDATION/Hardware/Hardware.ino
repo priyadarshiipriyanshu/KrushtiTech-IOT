@@ -10,23 +10,29 @@ DHT dht(DHTPIN, DHTTYPE);
 // LCD setup
 LiquidCrystal_I2C lcd(0x27, 16, 2);
 
-// Sensor pins
+// Pins
 int soilPin = A0;
 int ldrPin = A1;
 int rainPin = 6;
 int buzzer = 8;
+int relayPin = 7;
+
+// ONLY condition value
+int dryValue = 750;
 
 void setup() {
 
   Serial.begin(9600);
 
   dht.begin();
-
   lcd.init();
   lcd.backlight();
- 
+
   pinMode(rainPin, INPUT);
   pinMode(buzzer, OUTPUT);
+  pinMode(relayPin, OUTPUT);
+
+  digitalWrite(relayPin, HIGH); // pump OFF
 }
 
 void loop() {
@@ -38,21 +44,28 @@ void loop() {
   int light = analogRead(ldrPin);
   int rain = digitalRead(rainPin);
 
-  // -------- SERIAL DATA FOR PYTHON --------
+  // -------- SERIAL OUTPUT --------
+  Serial.print("Temp:");
   Serial.print(temp);
-  Serial.print(",");
+
+  Serial.print(" | Hum:");
   Serial.print(hum);
-  Serial.print(",");
+
+  Serial.print(" | Soil:");
   Serial.print(soil);
-  Serial.print(",");
+
+  Serial.print(" | Light:");
   Serial.print(light);
-  Serial.print(",");
-  Serial.println(rain);
 
-  // -------- LCD DISPLAY --------
+  Serial.print(" | Rain:");
+  Serial.print(rain);
+
+  Serial.print(" | Pump:");
+  Serial.println(soil > dryValue ? "ON" : "OFF");
+
+  // -------- LCD DISPLAY 1 --------
   lcd.clear();
-
-  lcd.setCursor(0,0); 
+  lcd.setCursor(0,0);
   lcd.print("T:");
   lcd.print(temp);
   lcd.print(" H:");
@@ -61,40 +74,46 @@ void loop() {
   lcd.setCursor(0,1);
   lcd.print("Soil:");
   lcd.print(soil);
+  lcd.print("   ");
 
-  delay(3000);
+  delay(2000);
 
+  // -------- LCD DISPLAY 2 --------
   lcd.clear();
-
   lcd.setCursor(0,0);
   lcd.print("Light:");
   lcd.print(light);
+  lcd.print("   ");
 
   lcd.setCursor(0,1);
+  lcd.print(rain == 0 ? "Rain Detected " : "No Rain       ");
 
+  // -------- BUZZER --------
   if(rain == 0)
-  {
-    lcd.print("Rain Detected");
-
     digitalWrite(buzzer, HIGH);
-    delay(800);
+  else
     digitalWrite(buzzer, LOW);
+
+  delay(2000);
+
+  // -------- PUMP CONTROL --------
+  lcd.clear();
+  lcd.setCursor(0,0);
+
+  if(soil > dryValue)   // ONLY condition
+  {
+    digitalWrite(relayPin, LOW);   // Pump ON
+    lcd.print("Pump ON        ");
+
+    delay(2000);   // run pump for 2 seconds ONLY
+
+    digitalWrite(relayPin, HIGH);  // Pump OFF after time
   }
   else
   {
-    lcd.print("No Rain");
+    digitalWrite(relayPin, HIGH);  // always OFF
+    lcd.print("Pump OFF       ");
   }
 
-  if(soil > 700)
-  {
-    for(int i=0;i<3;i++)
-    {
-      digitalWrite(buzzer, HIGH);
-      delay(200);
-      digitalWrite(buzzer, LOW);
-      delay(200);
-    }
-  }
-
-  delay(3000);
+  delay(2000);
 }
