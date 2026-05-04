@@ -45,23 +45,41 @@ void loop() {
   int rain = digitalRead(rainPin);
 
   // -------- SERIAL OUTPUT --------
-  Serial.print("Temp:");
-  Serial.print(temp);
+  // Serial.print("Temp:");
+  // Serial.print(temp);
 
-  Serial.print(" | Hum:");
-  Serial.print(hum);
+  // Serial.print(" | Hum:");
+  // Serial.print(hum);
 
-  Serial.print(" | Soil:");
-  Serial.print(soil);
+  // Serial.print(" | Soil:");
+  // Serial.print(soil);
 
-  Serial.print(" | Light:");
-  Serial.print(light);
+  // Serial.print(" | Light:");
+  // Serial.print(light);
 
-  Serial.print(" | Rain:");
-  Serial.print(rain);
+  // Serial.print(" | Rain:");
+  // Serial.print(rain);
 
-  Serial.print(" | Pump:");
-  Serial.println(soil > dryValue ? "ON" : "OFF");
+  // Serial.print(" | Pump:");
+  // Serial.println(soil > dryValue ? "ON" : "OFF");
+
+Serial.print(temp);
+Serial.print(",");
+
+Serial.print(hum);
+Serial.print(",");
+
+Serial.print(soil);
+Serial.print(",");
+
+Serial.print(light);
+Serial.print(",");
+
+Serial.print(rain);
+Serial.print(",");
+
+Serial.println(soil > dryValue ? 1 : 0);  // pump (1/0)
+
 
   // -------- LCD DISPLAY 1 --------
   lcd.clear();
